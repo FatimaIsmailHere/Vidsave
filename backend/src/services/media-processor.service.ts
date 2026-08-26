@@ -82,14 +82,15 @@ export class MediaProcessorService {
         args.push('-f', 'bestaudio/best');
       }
     } else {
+      // Prioritize single-file progressive MP4 formats for instant high-speed downloads
       const isHeightNum = /^\d{3,4}$/.test(rawFormatCode);
       if (isHeightNum) {
         const height = parseInt(rawFormatCode, 10);
-        args.push('-f', `bestvideo[height<=${height}][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=${height}]+bestaudio/best[height<=${height}]/best[ext=mp4]/best`);
+        args.push('-f', `best[height<=${height}][ext=mp4]/best[height<=${height}]/bestvideo[height<=${height}]+bestaudio/best`);
       } else if (rawFormatCode && rawFormatCode !== 'best' && rawFormatCode !== 'hd') {
-        args.push('-f', `${rawFormatCode}+bestaudio[ext=m4a]/${rawFormatCode}/bestvideo[ext=mp4]+bestaudio/best`);
+        args.push('-f', `${rawFormatCode}/best[ext=mp4]/best`);
       } else {
-        args.push('-f', 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best');
+        args.push('-f', 'best[ext=mp4]/bestvideo[ext=mp4]+bestaudio/best');
       }
 
       if (ffmpegBin) {
@@ -117,10 +118,10 @@ export class MediaProcessorService {
       if (!res.headersSent) {
         res.status(504).json({
           success: false,
-          error: { code: 'DOWNLOAD_TIMEOUT', message: 'Download preparation timed out.' },
+          error: { code: 'DOWNLOAD_TIMEOUT', message: 'Download preparation timed out. Please try another format.' },
         });
       }
-    }, 120000);
+    }, 90000);
 
     proc.on('close', (code) => {
       clearTimeout(timeout);
