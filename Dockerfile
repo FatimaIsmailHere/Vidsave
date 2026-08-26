@@ -23,4 +23,4 @@ ENV PORT=5000
 ENV NODE_ENV=production
 
 WORKDIR /app/backend
-CMD ["npm", "start"]
+CMD ["node", "dist/server.js"]
