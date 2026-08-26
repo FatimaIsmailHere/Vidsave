@@ -60,15 +60,11 @@ export const DownloadAdModal: React.FC<DownloadAdModalProps> = ({
     const cleanTitle = (title || 'SnapVid_Video').replace(/[^a-zA-Z0-9_\-\s]/g, '').trim().replace(/\s+/g, '_');
     const downloadUrl = getDownloadEndpoint(url, format.id, platform, cleanTitle);
 
-    // Trigger download with direct hidden iframe stream
-    let iframe = document.getElementById('hidden-download-iframe') as HTMLIFrameElement | null;
-    if (!iframe) {
-      iframe = document.createElement('iframe');
-      iframe.id = 'hidden-download-iframe';
-      iframe.style.display = 'none';
-      document.body.appendChild(iframe);
+    // On mobile devices (iOS Safari & Android Chrome), hidden iframe downloads are blocked by browser security policies.
+    // Setting window.location.href or direct anchor navigation ensures mobile downloads trigger native browser prompts.
+    if (typeof window !== 'undefined') {
+      window.location.href = downloadUrl;
     }
-    iframe.src = downloadUrl;
 
     // Close modal after confirmation
     setTimeout(() => {
@@ -77,6 +73,9 @@ export const DownloadAdModal: React.FC<DownloadAdModalProps> = ({
   };
 
   if (!isOpen || !format || !platform) return null;
+
+  const cleanTitle = (title || 'SnapVid_Video').replace(/[^a-zA-Z0-9_\-\s]/g, '').trim().replace(/\s+/g, '_');
+  const directDownloadUrl = getDownloadEndpoint(url, format.id, platform, cleanTitle);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-in fade-in duration-200">
@@ -143,17 +142,17 @@ export const DownloadAdModal: React.FC<DownloadAdModalProps> = ({
 
           <div className="mt-2.5 flex items-center justify-center gap-1.5 text-[11px] text-emerald-400">
             <FolderDown className="w-3.5 h-3.5" />
-            <span>File saves directly to your device&apos;s Downloads folder</span>
+            <span>File saves directly to your mobile/PC Downloads folder</span>
           </div>
         </div>
 
-        {/* Countdown & Trigger Section */}
+        {/* Countdown & Direct Mobile Download Link */}
         <div className="mt-5 pt-4 border-t border-white/10 flex flex-col sm:flex-row items-center justify-between gap-3">
           <div className="flex items-center gap-2 text-xs">
             {hasStartedDownload ? (
               <span className="flex items-center gap-1.5 text-emerald-400 font-semibold animate-pulse">
                 <CheckCircle2 className="w-4 h-4" />
-                <span>Download started! Saving to Downloads folder...</span>
+                <span>Download started! Check your device Downloads folder.</span>
               </span>
             ) : countdown > 0 ? (
               <span className="flex items-center gap-2 text-slate-300">
@@ -168,11 +167,11 @@ export const DownloadAdModal: React.FC<DownloadAdModalProps> = ({
             )}
           </div>
 
-          <button
-            type="button"
+          <a
+            href={directDownloadUrl}
+            download={`${cleanTitle}.${format.ext}`}
             onClick={triggerActualDownload}
-            disabled={hasStartedDownload}
-            className={`w-full sm:w-auto px-5 py-2.5 rounded-xl text-xs font-semibold flex items-center justify-center gap-2 transition-all ${
+            className={`w-full sm:w-auto px-5 py-2.5 rounded-xl text-xs font-semibold flex items-center justify-center gap-2 transition-all cursor-pointer ${
               hasStartedDownload
                 ? 'bg-emerald-600 text-white'
                 : 'glow-purple-button text-white'
@@ -189,7 +188,7 @@ export const DownloadAdModal: React.FC<DownloadAdModalProps> = ({
                 <span>{countdown > 0 ? 'Skip & Download' : 'Download Now'}</span>
               </>
             )}
-          </button>
+          </a>
         </div>
       </div>
     </div>
