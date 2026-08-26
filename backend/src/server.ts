@@ -11,6 +11,28 @@ const app = express();
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 5000;
 const CORS_ORIGIN = process.env.CORS_ORIGIN || '*';
 
+// Immediate health check routes for cloud load balancers (Railway, Render, AWS)
+app.get('/health', (_req, res) => {
+  res.status(200).json({ status: 'ok', time: new Date().toISOString() });
+});
+
+app.get('/api/health', (_req, res) => {
+  res.status(200).json({ status: 'ok', time: new Date().toISOString() });
+});
+
+app.get('/', (_req, res) => {
+  res.status(200).json({
+    name: 'SnapVid Downloader API',
+    status: 'online',
+    version: '1.0.0',
+    endpoints: {
+      analyze: 'POST /api/media/analyze',
+      download: 'POST|GET /api/media/download',
+      health: 'GET /api/health',
+    },
+  });
+});
+
 // Security and middleware
 app.use(
   helmet({
@@ -38,20 +60,6 @@ setInterval(cleanupStaleTempFiles, 10 * 60 * 1000);
 // API routes
 app.use('/api/media', mediaRouter);
 app.use('/api', mediaRouter);
-
-// Root health endpoint
-app.get('/', (_req, res) => {
-  res.json({
-    name: 'SnapVid Downloader API',
-    status: 'online',
-    version: '1.0.0',
-    endpoints: {
-      analyze: 'POST /api/media/analyze',
-      download: 'POST|GET /api/media/download',
-      health: 'GET /api/health',
-    },
-  });
-});
 
 // 404 handler
 app.use((_req, res) => {
