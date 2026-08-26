@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Download, X, Megaphone, CheckCircle2, Loader2, Sparkles, ExternalLink, FolderDown } from 'lucide-react';
 import { MediaFormat, Platform } from '../types';
 import { getDownloadEndpoint } from '../lib/api';
@@ -24,25 +24,21 @@ export const DownloadAdModal: React.FC<DownloadAdModalProps> = ({
 }) => {
   const [countdown, setCountdown] = useState(3);
   const [hasStartedDownload, setHasStartedDownload] = useState(false);
-  const isTriggeredRef = useRef(false);
 
   useEffect(() => {
     if (!isOpen || !format || !platform) {
       setCountdown(3);
       setHasStartedDownload(false);
-      isTriggeredRef.current = false;
       return;
     }
 
     setCountdown(3);
     setHasStartedDownload(false);
-    isTriggeredRef.current = false;
 
     const timer = setInterval(() => {
       setCountdown((prev) => {
         if (prev <= 1) {
           clearInterval(timer);
-          triggerActualDownload();
           return 0;
         }
         return prev - 1;
@@ -52,30 +48,20 @@ export const DownloadAdModal: React.FC<DownloadAdModalProps> = ({
     return () => clearInterval(timer);
   }, [isOpen, format, platform]);
 
-  const triggerActualDownload = () => {
-    if (!format || !platform || isTriggeredRef.current) return;
-    isTriggeredRef.current = true;
-    setHasStartedDownload(true);
-
-    const cleanTitle = (title || 'SnapVid_Video').replace(/[^a-zA-Z0-9_\-\s]/g, '').trim().replace(/\s+/g, '_');
-    const downloadUrl = getDownloadEndpoint(url, format.id, platform, cleanTitle);
-
-    // On mobile devices (iOS Safari & Android Chrome), hidden iframe downloads are blocked by browser security policies.
-    // Setting window.location.href or direct anchor navigation ensures mobile downloads trigger native browser prompts.
-    if (typeof window !== 'undefined') {
-      window.location.href = downloadUrl;
-    }
-
-    // Close modal after confirmation
-    setTimeout(() => {
-      onClose();
-    }, 4000);
-  };
-
   if (!isOpen || !format || !platform) return null;
 
-  const cleanTitle = (title || 'SnapVid_Video').replace(/[^a-zA-Z0-9_\-\s]/g, '').trim().replace(/\s+/g, '_');
+  const cleanTitle = (title || 'SnapVid_Video')
+    .replace(/[^a-zA-Z0-9_\-\s]/g, '')
+    .trim()
+    .replace(/\s+/g, '_');
   const directDownloadUrl = getDownloadEndpoint(url, format.id, platform, cleanTitle);
+
+  const handleDownloadClick = () => {
+    setHasStartedDownload(true);
+    setTimeout(() => {
+      onClose();
+    }, 3500);
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-in fade-in duration-200">
@@ -102,7 +88,7 @@ export const DownloadAdModal: React.FC<DownloadAdModalProps> = ({
           </div>
           <div>
             <h3 className="text-base font-bold text-white leading-tight">
-              Preparing Your Download
+              Preparing Your Media File
             </h3>
             <p className="text-xs text-slate-400">
               {format.quality || format.format} • {format.ext.toUpperCase()}
@@ -142,52 +128,45 @@ export const DownloadAdModal: React.FC<DownloadAdModalProps> = ({
 
           <div className="mt-2.5 flex items-center justify-center gap-1.5 text-[11px] text-emerald-400">
             <FolderDown className="w-3.5 h-3.5" />
-            <span>File saves directly to your mobile/PC Downloads folder</span>
+            <span>File saves directly to your device Downloads folder</span>
           </div>
         </div>
 
-        {/* Countdown & Direct Mobile Download Link */}
+        {/* Countdown & Direct Mobile Download Button */}
         <div className="mt-5 pt-4 border-t border-white/10 flex flex-col sm:flex-row items-center justify-between gap-3">
           <div className="flex items-center gap-2 text-xs">
             {hasStartedDownload ? (
               <span className="flex items-center gap-1.5 text-emerald-400 font-semibold animate-pulse">
                 <CheckCircle2 className="w-4 h-4" />
-                <span>Download started! Check your device Downloads folder.</span>
+                <span>Downloading... Check your Downloads folder!</span>
               </span>
             ) : countdown > 0 ? (
               <span className="flex items-center gap-2 text-slate-300">
                 <Loader2 className="w-4 h-4 text-violet-400 animate-spin" />
-                <span>Starting in <strong className="text-white text-sm font-mono">{countdown}s</strong>...</span>
+                <span>Ready in <strong className="text-white text-sm font-mono">{countdown}s</strong>...</span>
               </span>
             ) : (
-              <span className="flex items-center gap-1.5 text-cyan-300">
-                <Loader2 className="w-4 h-4 animate-spin" />
-                <span>Transferring file to your device...</span>
+              <span className="flex items-center gap-1.5 text-emerald-400 font-semibold">
+                <CheckCircle2 className="w-4 h-4" />
+                <span>File ready for download!</span>
               </span>
             )}
           </div>
 
           <a
             href={directDownloadUrl}
+            target="_blank"
+            rel="noopener noreferrer"
             download={`${cleanTitle}.${format.ext}`}
-            onClick={triggerActualDownload}
-            className={`w-full sm:w-auto px-5 py-2.5 rounded-xl text-xs font-semibold flex items-center justify-center gap-2 transition-all cursor-pointer ${
+            onClick={handleDownloadClick}
+            className={`w-full sm:w-auto px-6 py-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer shadow-lg ${
               hasStartedDownload
                 ? 'bg-emerald-600 text-white'
-                : 'glow-purple-button text-white'
+                : 'glow-purple-button text-white hover:scale-105'
             }`}
           >
-            {hasStartedDownload ? (
-              <>
-                <CheckCircle2 className="w-3.5 h-3.5" />
-                <span>Downloaded</span>
-              </>
-            ) : (
-              <>
-                <Download className="w-3.5 h-3.5" />
-                <span>{countdown > 0 ? 'Skip & Download' : 'Download Now'}</span>
-              </>
-            )}
+            <Download className="w-4 h-4" />
+            <span>{hasStartedDownload ? 'Downloading...' : countdown > 0 ? 'Skip & Download Now' : 'Download File Now'}</span>
           </a>
         </div>
       </div>
