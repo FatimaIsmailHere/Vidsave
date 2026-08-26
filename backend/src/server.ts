@@ -8,13 +8,15 @@ import { mediaRouter } from './routes/media.routes.js';
 import { cleanupStaleTempFiles } from './services/media-processor.service.js';
 
 const app = express();
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 5000;
 const CORS_ORIGIN = process.env.CORS_ORIGIN || '*';
 
 // Security and middleware
-app.use(helmet({
-  crossOriginResourcePolicy: { policy: 'cross-origin' },
-}));
+app.use(
+  helmet({
+    crossOriginResourcePolicy: { policy: 'cross-origin' },
+  })
+);
 
 app.use(
   cors({
@@ -40,7 +42,7 @@ app.use('/api', mediaRouter);
 // Root health endpoint
 app.get('/', (_req, res) => {
   res.json({
-    name: 'OmniMedia Downloader API',
+    name: 'SnapVid Downloader API',
     status: 'online',
     version: '1.0.0',
     endpoints: {
@@ -74,6 +76,6 @@ app.use((err: Error, _req: express.Request, res: express.Response, _next: expres
   });
 });
 
-app.listen(PORT, () => {
-  console.log(`🚀 OmniMedia Backend API running on http://localhost:${PORT}`);
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`🚀 SnapVid Backend API running on port ${PORT}`);
 });
