@@ -1,5 +1,5 @@
 import { MediaFormat, MediaInfo } from '../types/media.types.js';
-import { executeYtDlpJson, YtDlpRawMetadata } from '../utils/ytdlp.runner.js';
+import { executeYtDlpJson } from '../utils/ytdlp.runner.js';
 import { formatBytes, formatDuration } from '../utils/format.utils.js';
 
 export class YouTubeService {
@@ -25,9 +25,7 @@ export class YouTubeService {
     const formats: MediaFormat[] = [];
     const seenQualities = new Set<string>();
 
-    // Process video formats
     if (raw.formats && Array.isArray(raw.formats)) {
-      // Find standard video resolutions (1080p, 720p, 480p, 360p)
       const targetResolutions = [
         { height: 1080, label: '1080p Full HD' },
         { height: 720, label: '720p HD' },
@@ -43,8 +41,9 @@ export class YouTubeService {
         if (matching && !seenQualities.has(target.label)) {
           seenQualities.add(target.label);
           const size = matching.filesize || matching.filesize_approx;
+          const fmtId = matching.format_id ? matching.format_id : `${target.height}`;
           formats.push({
-            id: `video-${matching.format_id || target.height}`,
+            id: `video-${fmtId}`,
             format: 'MP4',
             ext: 'mp4',
             type: 'video',
@@ -59,7 +58,6 @@ export class YouTubeService {
         }
       }
 
-      // If no target resolutions found, grab best available video
       if (formats.length === 0) {
         const bestVideo = raw.formats
           .filter((f) => f.vcodec !== 'none' && f.height)
@@ -68,8 +66,9 @@ export class YouTubeService {
         if (bestVideo) {
           const height = bestVideo.height || 720;
           const size = bestVideo.filesize || bestVideo.filesize_approx;
+          const fmtId = bestVideo.format_id || `${height}`;
           formats.push({
-            id: `video-${bestVideo.format_id || 'best'}`,
+            id: `video-${fmtId}`,
             format: 'MP4',
             ext: 'mp4',
             type: 'video',
@@ -84,15 +83,15 @@ export class YouTubeService {
         }
       }
 
-      // Add Best Audio option (MP3/M4A)
       const audioFormat = raw.formats
         .filter((f) => f.acodec && f.acodec !== 'none')
         .sort((a, b) => (b.abr || 0) - (a.abr || 0))[0];
 
       if (audioFormat) {
         const size = audioFormat.filesize || audioFormat.filesize_approx;
+        const fmtId = audioFormat.format_id || 'best';
         formats.push({
-          id: `audio-${audioFormat.format_id || 'best'}`,
+          id: `audio-${fmtId}`,
           format: 'MP3',
           ext: 'mp3',
           type: 'audio',
@@ -106,7 +105,6 @@ export class YouTubeService {
       }
     }
 
-    // Default fallback format if extraction returned minimal format list
     if (formats.length === 0) {
       formats.push({
         id: 'video-best',

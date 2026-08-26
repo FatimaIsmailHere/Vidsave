@@ -9,7 +9,6 @@ import { Platform } from '../types/media.types.js';
 
 const TEMP_DIR = path.resolve(process.env.TEMP_STORAGE_PATH || './temp_media');
 
-// Ensure temp directory exists
 if (!fs.existsSync(TEMP_DIR)) {
   fs.mkdirSync(TEMP_DIR, { recursive: true });
 }
@@ -29,7 +28,6 @@ function getFFmpegExecutable(): string | null {
   return null;
 }
 
-// Cleanup stale temp files (> 15 minutes old)
 export function cleanupStaleTempFiles(): void {
   try {
     const files = fs.readdirSync(TEMP_DIR);
@@ -55,7 +53,7 @@ export class MediaProcessorService {
     res: Response
   ): Promise<void> {
     const isAudio = formatId.startsWith('audio');
-    const rawFormatCode = formatId.replace(/^(video|audio)-/, '');
+    const rawFormatCode = formatId.replace(/^(video|audio)-/, '').trim();
 
     const fileExt = isAudio ? 'mp3' : 'mp4';
     const cleanBaseName = sanitizeFilename(customTitle) || 'SnapVid_Download';
@@ -84,11 +82,16 @@ export class MediaProcessorService {
         args.push('-f', 'bestaudio/best');
       }
     } else {
-      if (rawFormatCode && rawFormatCode !== 'best' && rawFormatCode !== 'hd') {
-        args.push('-f', `${rawFormatCode}/bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best`);
+      const isHeightNum = /^\d{3,4}$/.test(rawFormatCode);
+      if (isHeightNum) {
+        const height = parseInt(rawFormatCode, 10);
+        args.push('-f', `bestvideo[height<=${height}][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=${height}]+bestaudio/best[height<=${height}]/best[ext=mp4]/best`);
+      } else if (rawFormatCode && rawFormatCode !== 'best' && rawFormatCode !== 'hd') {
+        args.push('-f', `${rawFormatCode}+bestaudio[ext=m4a]/${rawFormatCode}/bestvideo[ext=mp4]+bestaudio/best`);
       } else {
         args.push('-f', 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best');
       }
+
       if (ffmpegBin) {
         args.push('--merge-output-format', 'mp4');
       }
@@ -117,12 +120,11 @@ export class MediaProcessorService {
           error: { code: 'DOWNLOAD_TIMEOUT', message: 'Download preparation timed out.' },
         });
       }
-    }, 120000); // 2 minute max processing limit
+    }, 120000);
 
     proc.on('close', (code) => {
       clearTimeout(timeout);
 
-      // Find downloaded file with tempFileId prefix
       const matchingFiles = fs.readdirSync(TEMP_DIR).filter((f) => f.startsWith(tempFileId));
 
       if (matchingFiles.length === 0 || code !== 0) {
