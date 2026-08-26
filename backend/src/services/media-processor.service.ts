@@ -82,13 +82,13 @@ export class MediaProcessorService {
         args.push('-f', 'bestaudio/best');
       }
     } else {
-      // Prioritize single-file progressive MP4 formats for instant high-speed downloads
-      const isHeightNum = /^\d{3,4}$/.test(rawFormatCode);
-      if (isHeightNum) {
+      const knownHeights = ['2160', '1440', '1080', '720', '480', '360', '240', '144'];
+      
+      if (knownHeights.includes(rawFormatCode)) {
         const height = parseInt(rawFormatCode, 10);
-        args.push('-f', `best[height<=${height}][ext=mp4]/best[height<=${height}]/bestvideo[height<=${height}]+bestaudio/best`);
+        args.push('-f', `best[height<=${height}][ext=mp4]/bestvideo[height<=${height}]+bestaudio/best[height<=${height}]/best`);
       } else if (rawFormatCode && rawFormatCode !== 'best' && rawFormatCode !== 'hd') {
-        args.push('-f', `${rawFormatCode}/best[ext=mp4]/best`);
+        args.push('-f', `${rawFormatCode}+bestaudio/bestvideo[ext=mp4]+bestaudio/best[ext=mp4]/${rawFormatCode}/best`);
       } else {
         args.push('-f', 'best[ext=mp4]/bestvideo[ext=mp4]+bestaudio/best');
       }
