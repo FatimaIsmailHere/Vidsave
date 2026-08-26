@@ -2,7 +2,7 @@ import { Response } from 'express';
 import { spawn } from 'child_process';
 import path from 'path';
 import fs from 'fs';
-import ffmpegPath from 'ffmpeg-static';
+import ffmpegStatic from 'ffmpeg-static';
 import { getYtDlpPath } from '../utils/ytdlp.runner.js';
 import { sanitizeFilename } from '../utils/format.utils.js';
 import { Platform } from '../types/media.types.js';
@@ -12,6 +12,21 @@ const TEMP_DIR = path.resolve(process.env.TEMP_STORAGE_PATH || './temp_media');
 // Ensure temp directory exists
 if (!fs.existsSync(TEMP_DIR)) {
   fs.mkdirSync(TEMP_DIR, { recursive: true });
+}
+
+function getFFmpegExecutable(): string | null {
+  const candidates = [
+    '/usr/bin/ffmpeg',
+    '/usr/local/bin/ffmpeg',
+    ffmpegStatic,
+  ];
+
+  for (const candidate of candidates) {
+    if (candidate && fs.existsSync(candidate)) {
+      return candidate;
+    }
+  }
+  return null;
 }
 
 // Cleanup stale temp files (> 15 minutes old)
@@ -48,6 +63,8 @@ export class MediaProcessorService {
     const outputTemplate = path.join(TEMP_DIR, `${tempFileId}.%(ext)s`);
 
     const ytPath = getYtDlpPath();
+    const ffmpegBin = getFFmpegExecutable();
+
     const args: string[] = [
       '--no-playlist',
       '--no-warnings',
@@ -56,28 +73,23 @@ export class MediaProcessorService {
       'youtube:player_client=android,ios,web,mweb',
     ];
 
-    // Add ffmpeg location if available
-    if (ffmpegPath && fs.existsSync(ffmpegPath)) {
-      args.push('--ffmpeg-location', ffmpegPath);
+    if (ffmpegBin) {
+      args.push('--ffmpeg-location', ffmpegBin);
     }
 
     if (isAudio) {
-      if (ffmpegPath && fs.existsSync(ffmpegPath)) {
+      if (ffmpegBin) {
         args.push('-x', '--audio-format', 'mp3', '--audio-quality', '0');
       } else {
         args.push('-f', 'bestaudio/best');
       }
     } else {
       if (rawFormatCode && rawFormatCode !== 'best' && rawFormatCode !== 'hd') {
-        if (ffmpegPath && fs.existsSync(ffmpegPath)) {
-          args.push('-f', `${rawFormatCode}+bestaudio/best[ext=mp4]/${rawFormatCode}/best`);
-        } else {
-          args.push('-f', `${rawFormatCode}/best[ext=mp4]/best`);
-        }
+        args.push('-f', `${rawFormatCode}/bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best`);
       } else {
-        args.push('-f', 'best[ext=mp4]/best');
+        args.push('-f', 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best');
       }
-      if (ffmpegPath && fs.existsSync(ffmpegPath)) {
+      if (ffmpegBin) {
         args.push('--merge-output-format', 'mp4');
       }
     }
