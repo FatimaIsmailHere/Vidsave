@@ -54,8 +54,6 @@ export class MediaProcessorService {
       '--ignore-errors',
       '--extractor-args',
       'youtube:player_client=android,ios,web,mweb',
-      '--impersonate',
-      'chrome',
     ];
 
     // Add ffmpeg location if available
