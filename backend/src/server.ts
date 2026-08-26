@@ -85,5 +85,5 @@ app.use((err: Error, _req: express.Request, res: express.Response, _next: expres
 });
 
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚀 SnapVid Backend API running on port ${PORT}`);
+  console.log(`🚀 SnapVid Backend API listening on 0.0.0.0:${PORT}`);
 });

@@ -19,7 +19,6 @@ RUN cd backend && npm run build
 
 EXPOSE 5000
 
-ENV PORT=5000
 ENV NODE_ENV=production
 
 WORKDIR /app/backend
