@@ -97,7 +97,7 @@ export class MediaProcessorService {
     const ytPath = getYtDlpPath();
     const ffmpegBin = getFFmpegExecutable();
 
-    const args: string[] = buildYtDlpBaseArgs();
+    const args: string[] = buildYtDlpBaseArgs(platform);
 
     if (ffmpegBin) {
       args.push('--ffmpeg-location', ffmpegBin);

@@ -79,7 +79,7 @@ export interface YtDlpRawMetadata {
 }
 
 /** Build common yt-dlp base args shared by analysis and download. */
-export function buildYtDlpBaseArgs(): string[] {
+export function buildYtDlpBaseArgs(platform?: string): string[] {
   const args: string[] = [
     '--no-playlist',
     '--no-warnings',
@@ -89,8 +89,9 @@ export function buildYtDlpBaseArgs(): string[] {
     '--remote-components',
     'ejs:github',
   ];
+  // Only apply proxy for YouTube — WARP proxy breaks Instagram/TikTok
   const proxy = process.env.YTDLP_PROXY;
-  if (proxy) {
+  if (proxy && (!platform || platform === 'youtube')) {
     args.push('--proxy', proxy);
   }
   return args;
@@ -114,7 +115,7 @@ function retryWithClient(ytPath: string, url: string, client: string): Promise<Y
   return new Promise((resolve, reject) => {
     const args = [
       '--dump-json',
-      ...buildYtDlpBaseArgs(),
+      ...buildYtDlpBaseArgs('youtube'),
       '--extractor-args',
       `youtube:player_client=${client}`,
       url,
