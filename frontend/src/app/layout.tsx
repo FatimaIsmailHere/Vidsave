@@ -140,14 +140,16 @@ export default function RootLayout({
             />
           </>
         )}
+        {adsterraPopunderUrl && (
+          <Script
+            id="adsterra-popunder"
+            src={adsterraPopunderUrl}
+            strategy="lazyOnload"
+          />
+        )}
       </head>
       <body className="bg-background text-slate-100 min-h-screen flex flex-col antialiased selection:bg-violet-500/30 selection:text-violet-200">
         {children}
-
-        {/* Popunder script — placed in body (not head) so it can attach click handlers properly */}
-        {adsterraPopunderUrl && (
-          <script src={adsterraPopunderUrl} async />
-        )}
       </body>
     </html>
   );
