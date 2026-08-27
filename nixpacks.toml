@@ -2,10 +2,14 @@
 nixPkgs = ["nodejs_20", "python3", "python311Packages.pip", "ffmpeg"]
 
 [phases.install]
-cmds = ["npm --prefix backend install", "pip install 'yt-dlp[default]' curl-cffi"]
+cmds = [
+  "npm --prefix backend install",
+  "pip install 'yt-dlp[default]' curl-cffi",
+  "curl -sL https://github.com/shahradelahi/cloudflare-warp/releases/latest/download/warp_linux_amd64 -o /usr/local/bin/warp && chmod +x /usr/local/bin/warp"
+]
 
 [phases.build]
 cmds = ["npm --prefix backend run build"]
 
 [start]
-cmd = "npm --prefix backend start"
+cmd = "sh backend/scripts/start.sh"
