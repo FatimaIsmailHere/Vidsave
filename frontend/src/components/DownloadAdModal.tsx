@@ -61,11 +61,13 @@ export const DownloadAdModal: React.FC<DownloadAdModalProps> = ({
 
   const handleDownloadClick = async () => {
     setHasStartedDownload(true);
+    const controller = new AbortController();
     try {
-      const response = await fetch(directDownloadUrl);
+      // Fetch to check if the backend will return an error (JSON) or success (video)
+      const response = await fetch(directDownloadUrl, { signal: controller.signal });
+      const contentType = response.headers.get('content-type') || '';
 
       // If backend returned a JSON error (e.g. yt-dlp failed), show a friendly message
-      const contentType = response.headers.get('content-type') || '';
       if (contentType.includes('application/json') || !response.ok) {
         let errMsg = 'Download failed. Please try another format or URL.';
         try {
@@ -77,16 +79,10 @@ export const DownloadAdModal: React.FC<DownloadAdModalProps> = ({
         return;
       }
 
-      // Response is a video/audio file — trigger download via blob
-      const blob = await response.blob();
-      const blobUrl = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = blobUrl;
-      a.download = `${cleanTitle}.${format.ext}`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(blobUrl);
+      // Success — abort the fetch (we don't need the body) and let the browser
+      // handle the download natively. Blob URLs don't trigger downloads on mobile Chrome.
+      controller.abort();
+      window.open(directDownloadUrl, '_blank');
     } catch {
       // Network error or CORS — fallback to opening in new tab
       window.open(directDownloadUrl, '_blank');
