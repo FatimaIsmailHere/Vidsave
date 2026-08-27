@@ -9,13 +9,47 @@ interface AdsterraAdProps {
 }
 
 /**
+ * Global promise chain that ensures Adsterra banner ads load one at a time.
+ * Without this, multiple banners on the same page overwrite window.atOptions
+ * simultaneously, causing invoke.js to read the wrong config.
+ */
+let adLoadQueue = Promise.resolve();
+
+function enqueueAdLoad(
+  adKey: string,
+  width: number,
+  height: number,
+  container: HTMLElement
+): Promise<void> {
+  const task = new Promise<void>((resolve) => {
+    // Set the atOptions config for this specific ad
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (window as any).atOptions = {
+      key: adKey,
+      format: 'iframe',
+      height,
+      width,
+      params: {},
+    };
+
+    // Create invoke script — NOT async, so it reads atOptions synchronously
+    const script = document.createElement('script');
+    script.src = `https://www.highrevenueformat.com/${adKey}/invoke.js`;
+    script.onload = () => resolve();
+    script.onerror = () => resolve(); // Don't block the queue on error
+    container.appendChild(script);
+  });
+
+  return task;
+}
+
+/**
  * Safely injects an Adsterra banner ad into a container div.
- * Uses a unique ID per instance to avoid atOptions conflicts when
+ * Uses a sequential queue to prevent atOptions conflicts when
  * multiple banner ads are on the same page.
  */
 export const AdsterraAd: React.FC<AdsterraAdProps> = ({ adKey, width, height }) => {
   const containerRef = useRef<HTMLDivElement>(null);
-  const scriptId = `adsterra-${adKey.slice(0, 8)}`;
 
   useEffect(() => {
     if (!containerRef.current || !adKey) return;
@@ -25,37 +59,19 @@ export const AdsterraAd: React.FC<AdsterraAdProps> = ({ adKey, width, height }) 
     // Clear any previous content
     container.innerHTML = '';
 
-    // Create the atOptions script
-    const optionsScript = document.createElement('script');
-    optionsScript.textContent = `
-      window['atOptions_${scriptId}'] = {
-        'key': '${adKey}',
-        'format': 'iframe',
-        'height': ${height},
-        'width': ${width},
-        'params': {}
-      };
-      window.atOptions = window['atOptions_${scriptId}'];
-    `;
-    container.appendChild(optionsScript);
+    // Queue this ad to load after any previously queued ads finish
+    const loadPromise = adLoadQueue.then(() =>
+      enqueueAdLoad(adKey, width, height, container)
+    );
 
-    // Create the invoke script
-    const invokeScript = document.createElement('script');
-    invokeScript.src = `https://www.highrevenueformat.com/${adKey}/invoke.js`;
-    invokeScript.async = true;
-    container.appendChild(invokeScript);
+    // Update the global queue (fire-and-forget)
+    adLoadQueue = loadPromise.catch(() => {});
 
     return () => {
       // Cleanup on unmount
       container.innerHTML = '';
-      try {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        delete (window as any)[`atOptions_${scriptId}`];
-      } catch {
-        // Ignore cleanup errors
-      }
     };
-  }, [adKey, width, height, scriptId]);
+  }, [adKey, width, height]);
 
   return (
     <div
