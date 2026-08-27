@@ -144,7 +144,7 @@ export default function RootLayout({
           <Script
             id="adsterra-popunder"
             src={adsterraPopunderUrl}
-            strategy="lazyOnload"
+            strategy="afterInteractive"
           />
         )}
       </head>
