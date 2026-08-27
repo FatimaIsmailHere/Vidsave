@@ -133,12 +133,24 @@ export class MediaProcessorService {
       if (matchingFiles.length === 0 || code !== 0) {
         console.error('yt-dlp download failed:', stderr);
         if (!res.headersSent) {
+          const isYouTube = url.includes('youtube.com') || url.includes('youtu.be');
+          const errorLower = stderr.toLowerCase();
+          const isBlocked = errorLower.includes('sign in to confirm') || errorLower.includes('bot') || errorLower.includes('blocked');
+
+          let message = 'Failed to process media file for download. Please try another format or URL.';
+          let code = 'DOWNLOAD_FAILED';
+
+          if (isYouTube && isBlocked) {
+            message = 'YouTube is temporarily blocking downloads from this server. Please try again in a few minutes or try a different video.';
+            code = 'YOUTUBE_RATE_LIMITED';
+          } else if (isYouTube) {
+            message = 'YouTube download failed. This may be a temporary issue — please try again or try a different format.';
+            code = 'YOUTUBE_FAILED';
+          }
+
           res.status(500).json({
             success: false,
-            error: {
-              code: 'DOWNLOAD_FAILED',
-              message: 'Failed to process media file for download. Please try another format or URL.',
-            },
+            error: { code, message },
           });
         }
         return;
