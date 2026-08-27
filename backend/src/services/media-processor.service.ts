@@ -1,11 +1,45 @@
 import { Response } from 'express';
-import { spawn } from 'child_process';
+import { spawn, ChildProcess } from 'child_process';
 import path from 'path';
 import fs from 'fs';
 import ffmpegStatic from 'ffmpeg-static';
 import { getYtDlpPath, buildYtDlpBaseArgs } from '../utils/ytdlp.runner.js';
 import { sanitizeFilename } from '../utils/format.utils.js';
 import { Platform } from '../types/media.types.js';
+
+/** Player clients to try when YouTube blocks the default extraction. */
+const YT_PLAYER_CLIENTS = ['mweb', 'tv'];
+
+/** Check if stderr indicates YouTube rate-limiting / bot detection. */
+function isYouTubeBlocked(stderr: string): boolean {
+  const lower = stderr.toLowerCase();
+  return lower.includes('sign in to confirm') || lower.includes('bot') || lower.includes('blocked');
+}
+
+/** Spawn yt-dlp with the given args and resolve/reject on completion. */
+function runYtDlp(ytPath: string, args: string[], timeoutMs: number): Promise<{ code: number | null; stderr: string }> {
+  return new Promise((resolve) => {
+    const proc: ChildProcess = spawn(ytPath, args);
+    let stderr = '';
+
+    proc.stderr?.on('data', (data) => { stderr += data.toString(); });
+
+    const timer = setTimeout(() => {
+      proc.kill('SIGTERM');
+      resolve({ code: -1, stderr: 'timeout' });
+    }, timeoutMs);
+
+    proc.on('close', (code) => {
+      clearTimeout(timer);
+      resolve({ code, stderr });
+    });
+
+    proc.on('error', (err) => {
+      clearTimeout(timer);
+      resolve({ code: -1, stderr: err.message });
+    });
+  });
+}
 
 const TEMP_DIR = path.resolve(process.env.TEMP_STORAGE_PATH || './temp_media');
 
@@ -103,60 +137,48 @@ export class MediaProcessorService {
     args.push('-o', outputTemplate);
     args.push(url);
 
-    // Spawn yt-dlp to download to temporary file
-    const proc = spawn(ytPath, args);
-    let stderr = '';
+    const isYouTube = url.includes('youtube.com') || url.includes('youtu.be');
+    const timeoutMs = 90000;
 
-    proc.stderr.on('data', (data) => {
-      stderr += data.toString();
-    });
-
-    const timeout = setTimeout(() => {
-      proc.kill('SIGTERM');
+    // Helper: clean up temp files for this download
+    const cleanupTemp = () => {
       const files = fs.readdirSync(TEMP_DIR).filter((f) => f.startsWith(tempFileId));
       for (const f of files) {
         try { fs.unlinkSync(path.join(TEMP_DIR, f)); } catch {}
       }
-      if (!res.headersSent) {
-        res.status(504).json({
-          success: false,
-          error: { code: 'DOWNLOAD_TIMEOUT', message: 'Download preparation timed out. Please try another format.' },
-        });
+    };
+
+    // --- Download with retry for YouTube ---
+    // yt-dlp may fail on the first attempt if YouTube blocks the default player client.
+    // We retry with alternative player clients (mweb, tv) before giving up.
+    let lastStderr = '';
+    let downloadSucceeded = false;
+
+    const clientAttempts = isYouTube ? [null, ...YT_PLAYER_CLIENTS] : [null];
+
+    for (const client of clientAttempts) {
+      // Build per-attempt args: clone base args and add player_client override if needed
+      const attemptArgs = [...args];
+      if (client) {
+        // Insert player_client override before the URL arg (last two entries: -o and url)
+        attemptArgs.splice(attemptArgs.length - 2, 0,
+          '--extractor-args', `youtube:player_client=${client}`
+        );
+        console.log(`yt-dlp download retry: player_client=${client}`);
       }
-    }, 90000);
 
-    proc.on('close', (code) => {
-      clearTimeout(timeout);
+      const result = await runYtDlp(ytPath, attemptArgs, timeoutMs);
+      lastStderr = result.stderr;
 
+      // Check if files were produced
       const matchingFiles = fs.readdirSync(TEMP_DIR).filter((f) => f.startsWith(tempFileId));
+      const success = matchingFiles.length > 0 && result.code === 0;
 
-      if (matchingFiles.length === 0 || code !== 0) {
-        console.error('yt-dlp download failed:', stderr);
-        if (!res.headersSent) {
-          const isYouTube = url.includes('youtube.com') || url.includes('youtu.be');
-          const errorLower = stderr.toLowerCase();
-          const isBlocked = errorLower.includes('sign in to confirm') || errorLower.includes('bot') || errorLower.includes('blocked');
+      if (success) {
+        downloadSucceeded = true;
 
-          let message = 'Failed to process media file for download. Please try another format or URL.';
-          let code = 'DOWNLOAD_FAILED';
-
-          if (isYouTube && isBlocked) {
-            message = 'YouTube is temporarily blocking downloads from this server. Please try again in a few minutes or try a different video.';
-            code = 'YOUTUBE_RATE_LIMITED';
-          } else if (isYouTube) {
-            message = 'YouTube download failed. This may be a temporary issue — please try again or try a different format.';
-            code = 'YOUTUBE_FAILED';
-          }
-
-          res.status(500).json({
-            success: false,
-            error: { code, message },
-          });
-        }
-        return;
-      }
-
-      const actualFilePath = path.join(TEMP_DIR, matchingFiles[0]);
+        // Stream the file to the response
+        const actualFilePath = path.join(TEMP_DIR, matchingFiles[0]);
       const stat = fs.statSync(actualFilePath);
       const downloadedExt = path.extname(actualFilePath).replace(/^\./, '').toLowerCase();
       const finalExt = downloadedExt || fileExt;
@@ -184,22 +206,46 @@ export class MediaProcessorService {
         }
       };
 
-      res.on('finish', cleanup);
-      res.on('close', cleanup);
-      fileStream.on('error', (err) => {
-        console.error('Stream error:', err);
-        cleanup();
-      });
-    });
-
-    proc.on('error', (err) => {
-      clearTimeout(timeout);
-      if (!res.headersSent) {
-        res.status(500).json({
-          success: false,
-          error: { code: 'EXECUTION_ERROR', message: `Download execution error: ${err.message}` },
+        res.on('finish', cleanup);
+        res.on('close', cleanup);
+        fileStream.on('error', (err) => {
+          console.error('Stream error:', err);
+          cleanup();
         });
+
+        break; // success — exit retry loop
       }
-    });
+
+      // Attempt failed — clean up temp files before retry
+      cleanupTemp();
+
+      // If not YouTube, no point retrying with player clients
+      if (!isYouTube) break;
+
+      // If blocked, continue to next player client; otherwise break early
+      if (!isYouTubeBlocked(result.stderr)) break;
+    }
+
+    // All attempts exhausted — return error
+    if (!downloadSucceeded && !res.headersSent) {
+      console.error('yt-dlp download failed:', lastStderr);
+      let errorMessage = 'Failed to process media file for download. Please try another format or URL.';
+      let errorCode = 'DOWNLOAD_FAILED';
+
+      if (isYouTube) {
+        if (isYouTubeBlocked(lastStderr)) {
+          errorMessage = 'YouTube is temporarily blocking downloads from this server. Please try again in a few minutes or try a different video.';
+          errorCode = 'YOUTUBE_RATE_LIMITED';
+        } else {
+          errorMessage = 'YouTube download failed. This may be a temporary issue — please try again or try a different format.';
+          errorCode = 'YOUTUBE_FAILED';
+        }
+      }
+
+      res.status(500).json({
+        success: false,
+        error: { code: errorCode, message: errorMessage },
+      });
+    }
   }
 }

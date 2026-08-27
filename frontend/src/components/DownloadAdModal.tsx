@@ -59,17 +59,38 @@ export const DownloadAdModal: React.FC<DownloadAdModalProps> = ({
     .replace(/\s+/g, '_');
   const directDownloadUrl = getDownloadEndpoint(url, format.id, platform, cleanTitle);
 
-  const handleDownloadClick = () => {
+  const handleDownloadClick = async () => {
     setHasStartedDownload(true);
-    // Let the browser handle the download natively via Content-Disposition: attachment
-    // The fetch+blob+createObjectURL pattern breaks on mobile browsers (Chrome/Safari)
-    const a = document.createElement('a');
-    a.href = directDownloadUrl;
-    a.target = '_blank';
-    a.rel = 'noopener noreferrer';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+    try {
+      const response = await fetch(directDownloadUrl);
+
+      // If backend returned a JSON error (e.g. yt-dlp failed), show a friendly message
+      const contentType = response.headers.get('content-type') || '';
+      if (contentType.includes('application/json') || !response.ok) {
+        let errMsg = 'Download failed. Please try another format or URL.';
+        try {
+          const errJson = await response.json();
+          errMsg = errJson.error?.message || errMsg;
+        } catch {}
+        alert(errMsg);
+        setHasStartedDownload(false);
+        return;
+      }
+
+      // Response is a video/audio file — trigger download via blob
+      const blob = await response.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = `${cleanTitle}.${format.ext}`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(blobUrl);
+    } catch {
+      // Network error or CORS — fallback to opening in new tab
+      window.open(directDownloadUrl, '_blank');
+    }
     setTimeout(() => {
       onClose();
     }, 3500);
