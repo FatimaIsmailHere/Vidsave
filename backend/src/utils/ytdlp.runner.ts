@@ -78,19 +78,92 @@ export interface YtDlpRawMetadata {
   _has_drm?: boolean;
 }
 
+/** Build common yt-dlp base args shared by analysis and download. */
+export function buildYtDlpBaseArgs(): string[] {
+  const args: string[] = [
+    '--no-playlist',
+    '--no-warnings',
+    '--ignore-errors',
+    '--js-runtimes',
+    'node',
+    '--remote-components',
+    'ejs:github',
+  ];
+  const proxy = process.env.YTDLP_PROXY;
+  if (proxy) {
+    args.push('--proxy', proxy);
+  }
+  return args;
+}
+
+/** Player clients to try in order when YouTube blocks the default extraction. */
+const YT_PLAYER_CLIENTS = ['web', 'mweb', 'tv'];
+
+function extractCurrentClient(stderr: string): string | null {
+  const match = stderr.match(/player_client=(\w+)/);
+  return match ? match[1] : null;
+}
+
+function getNextPlayerClient(current: string | null): string | null {
+  const idx = current ? YT_PLAYER_CLIENTS.indexOf(current) : -1;
+  const next = idx + 1;
+  return next < YT_PLAYER_CLIENTS.length ? YT_PLAYER_CLIENTS[next] : null;
+}
+
+function retryWithClient(ytPath: string, url: string, client: string): Promise<YtDlpRawMetadata> {
+  return new Promise((resolve, reject) => {
+    const args = [
+      '--dump-json',
+      ...buildYtDlpBaseArgs(),
+      '--extractor-args',
+      `youtube:player_client=${client}`,
+      url,
+    ];
+
+    const proc = spawn(ytPath, args);
+    let stdout = '';
+    let stderr = '';
+
+    proc.stdout.on('data', (data: Buffer) => { stdout += data.toString(); });
+    proc.stderr.on('data', (data: Buffer) => { stderr += data.toString(); });
+
+    const timeout = setTimeout(() => {
+      proc.kill('SIGTERM');
+      reject(new Error('Retry timed out. Please try again later.'));
+    }, 30000);
+
+    proc.on('close', () => {
+      clearTimeout(timeout);
+      if (stdout.trim()) {
+        const lines = stdout.trim().split(/\r?\n/);
+        for (let i = lines.length - 1; i >= 0; i--) {
+          const line = lines[i].trim();
+          if (line.startsWith('{') && line.endsWith('}')) {
+            try {
+              const parsed = JSON.parse(line);
+              if (parsed && (parsed.id || parsed.title || parsed.formats)) {
+                return resolve(parsed);
+              }
+            } catch {}
+          }
+        }
+      }
+      reject(new Error('YouTube is blocking this request. Please try again in a few minutes.'));
+    });
+
+    proc.on('error', (err: Error) => {
+      clearTimeout(timeout);
+      reject(new Error(`Retry failed: ${err.message}`));
+    });
+  });
+}
+
 export function executeYtDlpJson(url: string): Promise<YtDlpRawMetadata> {
   return new Promise((resolve, reject) => {
     const ytPath = getYtDlpPath();
     const args = [
       '--dump-json',
-      '--no-playlist',
-      '--no-warnings',
-      '--ignore-errors',
-      '--skip-download',
-      '--js-runtimes',
-      'node',
-      '--remote-components',
-      'ejs:github',
+      ...buildYtDlpBaseArgs(),
       url,
     ];
 
@@ -158,7 +231,22 @@ export function executeYtDlpJson(url: string): Promise<YtDlpRawMetadata> {
         return reject(new Error('YouTube requires a JavaScript runtime. Please ensure yt-dlp-ejs and Node.js are installed.'));
       }
       if (errorLower.includes('sign in to confirm') || errorLower.includes('bot')) {
+        // YouTube is blocking — retry with a different player client if available
+        const currentClient = extractCurrentClient(stderr);
+        const nextClient = getNextPlayerClient(currentClient);
+        if (nextClient) {
+          console.log(`yt-dlp blocked with client=${currentClient || 'default'}, retrying with client=${nextClient}`);
+          return resolve(retryWithClient(ytPath, url, nextClient));
+        }
         return reject(new Error('YouTube is blocking this request. The server IP may be rate-limited by YouTube.'));
+      }
+
+      // Generic failure — also try next client
+      const currentClient = extractCurrentClient(stderr);
+      const nextClient = getNextPlayerClient(currentClient);
+      if (nextClient) {
+        console.log(`yt-dlp extraction failed, retrying with client=${nextClient}`);
+        return resolve(retryWithClient(ytPath, url, nextClient));
       }
 
       return reject(new Error('We could not process this URL right now. Please verify the link and try again.'));

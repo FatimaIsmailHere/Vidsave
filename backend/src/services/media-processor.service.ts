@@ -3,7 +3,7 @@ import { spawn } from 'child_process';
 import path from 'path';
 import fs from 'fs';
 import ffmpegStatic from 'ffmpeg-static';
-import { getYtDlpPath } from '../utils/ytdlp.runner.js';
+import { getYtDlpPath, buildYtDlpBaseArgs } from '../utils/ytdlp.runner.js';
 import { sanitizeFilename } from '../utils/format.utils.js';
 import { Platform } from '../types/media.types.js';
 
@@ -63,15 +63,7 @@ export class MediaProcessorService {
     const ytPath = getYtDlpPath();
     const ffmpegBin = getFFmpegExecutable();
 
-    const args: string[] = [
-      '--no-playlist',
-      '--no-warnings',
-      '--ignore-errors',
-      '--js-runtimes',
-      'node',
-      '--remote-components',
-      'ejs:github',
-    ];
+    const args: string[] = buildYtDlpBaseArgs();
 
     if (ffmpegBin) {
       args.push('--ffmpeg-location', ffmpegBin);
