@@ -4,7 +4,6 @@ import React, { useState, useEffect } from 'react';
 import { Download, X, Megaphone, CheckCircle2, Loader2, FolderDown } from 'lucide-react';
 import { MediaFormat, Platform } from '../types';
 import { getDownloadEndpoint } from '../lib/api';
-import { getClientSideDownloadUrl } from '../lib/youtube-client';
 import { AdsterraAd } from './AdsterraAd';
 
 interface DownloadAdModalProps {
@@ -14,7 +13,6 @@ interface DownloadAdModalProps {
   url: string;
   platform: Platform | null;
   title: string;
-  clientSide?: boolean;
 }
 
 export const DownloadAdModal: React.FC<DownloadAdModalProps> = ({
@@ -24,7 +22,6 @@ export const DownloadAdModal: React.FC<DownloadAdModalProps> = ({
   url,
   platform,
   title,
-  clientSide,
 }) => {
   const [countdown, setCountdown] = useState(3);
   const [hasStartedDownload, setHasStartedDownload] = useState(false);
@@ -60,21 +57,7 @@ export const DownloadAdModal: React.FC<DownloadAdModalProps> = ({
     .replace(/[^a-zA-Z0-9_\-\s]/g, '')
     .trim()
     .replace(/\s+/g, '_');
-  const serverDownloadUrl = getDownloadEndpoint(url, format.id, platform, cleanTitle);
-
-  const [directDownloadUrl, setDirectDownloadUrl] = useState(serverDownloadUrl);
-
-  // For client-side extraction, get the direct URL from the browser
-  useEffect(() => {
-    if (clientSide && format) {
-      getClientSideDownloadUrl(url, format.id)
-        .then((clientUrl) => setDirectDownloadUrl(clientUrl))
-        .catch(() => {
-          // Fall back to server URL if client-side extraction fails
-          setDirectDownloadUrl(serverDownloadUrl);
-        });
-    }
-  }, [clientSide, format, url, serverDownloadUrl]);
+  const directDownloadUrl = getDownloadEndpoint(url, format.id, platform, cleanTitle);
 
   const handleDownloadClick = () => {
     setHasStartedDownload(true);
