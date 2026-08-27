@@ -1,9 +1,10 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Download, X, Megaphone, CheckCircle2, Loader2, Sparkles, ExternalLink, FolderDown } from 'lucide-react';
+import { Download, X, Megaphone, CheckCircle2, Loader2, FolderDown } from 'lucide-react';
 import { MediaFormat, Platform } from '../types';
 import { getDownloadEndpoint } from '../lib/api';
+import { AdsterraAd } from './AdsterraAd';
 
 interface DownloadAdModalProps {
   isOpen: boolean;
@@ -24,6 +25,8 @@ export const DownloadAdModal: React.FC<DownloadAdModalProps> = ({
 }) => {
   const [countdown, setCountdown] = useState(3);
   const [hasStartedDownload, setHasStartedDownload] = useState(false);
+
+  const adsterraKey728 = process.env.NEXT_PUBLIC_ADSTERRA_BANNER_KEY_728;
 
   useEffect(() => {
     if (!isOpen || !format || !platform) {
@@ -91,8 +94,8 @@ export const DownloadAdModal: React.FC<DownloadAdModalProps> = ({
               Preparing Your Media File
             </h3>
             <p className="text-xs text-slate-400">
-              {format.quality || format.format} • {format.ext.toUpperCase()}
-              {format.fileSizeFormatted ? ` • ${format.fileSizeFormatted}` : ''}
+              {format.quality || format.format} &bull; {format.ext.toUpperCase()}
+              {format.fileSizeFormatted ? ` &bull; ${format.fileSizeFormatted}` : ''}
             </p>
           </div>
         </div>
@@ -104,27 +107,15 @@ export const DownloadAdModal: React.FC<DownloadAdModalProps> = ({
             <span>Sponsored Advertisement</span>
           </div>
 
-          <div className="py-6 px-4 rounded-xl bg-slate-900/70 border border-white/5 flex flex-col items-center justify-center">
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-cyan-500/10 border border-cyan-500/30 text-[11px] font-semibold text-cyan-300 mb-2">
-              <Sparkles className="w-3.5 h-3.5" />
-              <span>Partner Promotion</span>
+          {adsterraKey728 ? (
+            <div className="flex items-center justify-center py-2">
+              <AdsterraAd adKey={adsterraKey728} width={728} height={90} />
             </div>
-            <p className="text-sm font-bold text-white mb-1">
-              High-Speed Cloud Storage & Media Player
-            </p>
-            <p className="text-xs text-slate-400 max-w-xs mb-3">
-              Stream, convert, and store your media library with infinite bandwidth.
-            </p>
-            <a
-              href="https://google.com"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold text-white bg-white/10 hover:bg-white/15 border border-white/10 transition-colors"
-            >
-              <span>Learn More</span>
-              <ExternalLink className="w-3 h-3 text-slate-400" />
-            </a>
-          </div>
+          ) : (
+            <div className="py-6 px-4 rounded-xl bg-slate-900/70 border border-white/5 flex flex-col items-center justify-center">
+              <span className="text-xs text-slate-500">Advertisement</span>
+            </div>
+          )}
 
           <div className="mt-2.5 flex items-center justify-center gap-1.5 text-[11px] text-emerald-400">
             <FolderDown className="w-3.5 h-3.5" />
