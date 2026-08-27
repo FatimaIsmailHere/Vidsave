@@ -59,24 +59,17 @@ export const DownloadAdModal: React.FC<DownloadAdModalProps> = ({
     .replace(/\s+/g, '_');
   const directDownloadUrl = getDownloadEndpoint(url, format.id, platform, cleanTitle);
 
-  const handleDownloadClick = async () => {
+  const handleDownloadClick = () => {
     setHasStartedDownload(true);
-    try {
-      const response = await fetch(directDownloadUrl);
-      if (!response.ok) throw new Error('Download failed');
-      const blob = await response.blob();
-      const blobUrl = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = blobUrl;
-      a.download = `${cleanTitle}.${format.ext}`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(blobUrl);
-    } catch {
-      // Fallback: open in new tab
-      window.open(directDownloadUrl, '_blank');
-    }
+    // Let the browser handle the download natively via Content-Disposition: attachment
+    // The fetch+blob+createObjectURL pattern breaks on mobile browsers (Chrome/Safari)
+    const a = document.createElement('a');
+    a.href = directDownloadUrl;
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
     setTimeout(() => {
       onClose();
     }, 3500);
