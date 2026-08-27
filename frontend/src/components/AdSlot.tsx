@@ -2,6 +2,7 @@
 
 import React, { useEffect, useRef } from 'react';
 import { Megaphone, Sparkles } from 'lucide-react';
+import { AdsterraAd } from './AdsterraAd';
 
 export type AdVariant = 'top' | 'banner' | 'sidebar' | 'mobile' | 'bottom';
 
@@ -17,10 +18,26 @@ declare global {
   }
 }
 
+function getAdsterraKey(variant: AdVariant): { key: string; width: number; height: number } | null {
+  if (variant === 'mobile') {
+    const key = process.env.NEXT_PUBLIC_ADSTERRA_BANNER_KEY_320;
+    if (key) return { key, width: 320, height: 50 };
+  } else if (variant === 'top' || variant === 'banner' || variant === 'bottom') {
+    const key = process.env.NEXT_PUBLIC_ADSTERRA_BANNER_KEY_728;
+    if (key) return { key, width: 728, height: 90 };
+  }
+  return null;
+}
+
 export const AdSlot: React.FC<AdSlotProps> = ({ variant, slotId, className = '' }) => {
   const adClient = process.env.NEXT_PUBLIC_ADSENSE_CLIENT_ID;
   const isAdSenseActive = Boolean(adClient && adClient.startsWith('ca-pub-'));
   const adRef = useRef<HTMLModElement | null>(null);
+  const adsterraConfig = getAdsterraKey(variant);
+  const isAdsterraActive = Boolean(adsterraConfig);
+
+  // Use Adsterra if AdSense is not active but Adsterra keys are configured
+  const useAdsterra = !isAdSenseActive && isAdsterraActive;
 
   useEffect(() => {
     if (isAdSenseActive && typeof window !== 'undefined') {
@@ -93,6 +110,14 @@ export const AdSlot: React.FC<AdSlotProps> = ({ variant, slotId, className = '' 
             data-ad-slot={slotId || '1234567890'}
             data-ad-format={config.format}
             data-full-width-responsive="true"
+          />
+        </div>
+      ) : useAdsterra && adsterraConfig ? (
+        <div className={`w-full ${config.box} flex items-center justify-center overflow-hidden`}>
+          <AdsterraAd
+            adKey={adsterraConfig.key}
+            width={adsterraConfig.width}
+            height={adsterraConfig.height}
           />
         </div>
       ) : (

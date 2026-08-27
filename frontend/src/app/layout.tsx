@@ -99,6 +99,7 @@ export default function RootLayout({
 }) {
   const adsenseClientId = process.env.NEXT_PUBLIC_ADSENSE_CLIENT_ID;
   const gaMeasurementId = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID;
+  const adsterraPopunderUrl = process.env.NEXT_PUBLIC_ADSTERRA_POPUNDER_URL;
 
   return (
     <html lang="en" className="dark scroll-smooth">
@@ -138,6 +139,13 @@ export default function RootLayout({
               }}
             />
           </>
+        )}
+        {adsterraPopunderUrl && (
+          <Script
+            id="adsterra-popunder"
+            src={adsterraPopunderUrl}
+            strategy="lazyOnload"
+          />
         )}
       </head>
       <body className="bg-background text-slate-100 min-h-screen flex flex-col antialiased selection:bg-violet-500/30 selection:text-violet-200">
