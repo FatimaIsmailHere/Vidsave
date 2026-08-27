@@ -1,8 +1,8 @@
 [phases.setup]
-nixPkgs = ["nodejs_20", "python3", "python311Packages.pip", "ffmpeg", "yt-dlp"]
+nixPkgs = ["nodejs_20", "python3", "python311Packages.pip", "ffmpeg"]
 
 [phases.install]
-cmds = ["npm install", "pip install yt-dlp curl-cffi"]
+cmds = ["npm install", "pip install 'yt-dlp[default]' curl-cffi"]
 
 [phases.build]
 cmds = ["npm run build"]

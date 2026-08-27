@@ -87,8 +87,10 @@ export function executeYtDlpJson(url: string): Promise<YtDlpRawMetadata> {
       '--no-warnings',
       '--ignore-errors',
       '--skip-download',
-      '--extractor-args',
-      'youtube:player_client=web_creator,web',
+      '--js-runtimes',
+      'node',
+      '--remote-components',
+      'ejs:github',
       url,
     ];
 
@@ -136,6 +138,7 @@ export function executeYtDlpJson(url: string): Promise<YtDlpRawMetadata> {
 
       // If we couldn't parse stdout, inspect stderr for genuine failure reasons
       const errorLower = stderr.toLowerCase();
+      console.error('yt-dlp stderr:', stderr.substring(0, 2000));
       if (errorLower.includes('private') || errorLower.includes('members only') || errorLower.includes('restricted video')) {
         return reject(new Error('This content cannot be accessed because it is private or restricted.'));
       }
@@ -150,6 +153,12 @@ export function executeYtDlpJson(url: string): Promise<YtDlpRawMetadata> {
       }
       if (errorLower.includes('empty media response') || errorLower.includes('require_login') || errorLower.includes('login')) {
         return reject(new Error('Instagram requires login authentication to access this specific media.'));
+      }
+      if (errorLower.includes('no supported javascript runtime') || errorLower.includes('js runtime') || errorLower.includes('ejs')) {
+        return reject(new Error('YouTube requires a JavaScript runtime. Please ensure yt-dlp-ejs and Node.js are installed.'));
+      }
+      if (errorLower.includes('sign in to confirm') || errorLower.includes('bot')) {
+        return reject(new Error('YouTube is blocking this request. The server IP may be rate-limited by YouTube.'));
       }
 
       return reject(new Error('We could not process this URL right now. Please verify the link and try again.'));

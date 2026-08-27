@@ -67,8 +67,10 @@ export class MediaProcessorService {
       '--no-playlist',
       '--no-warnings',
       '--ignore-errors',
-      '--extractor-args',
-      'youtube:player_client=web_creator,web',
+      '--js-runtimes',
+      'node',
+      '--remote-components',
+      'ejs:github',
     ];
 
     if (ffmpegBin) {
