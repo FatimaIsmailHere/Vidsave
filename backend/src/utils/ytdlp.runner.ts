@@ -88,7 +88,7 @@ export function executeYtDlpJson(url: string): Promise<YtDlpRawMetadata> {
       '--ignore-errors',
       '--skip-download',
       '--extractor-args',
-      'youtube:player_client=android,ios,web,mweb',
+      'youtube:player_client=web_creator,web',
       url,
     ];
 

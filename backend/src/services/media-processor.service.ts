@@ -68,7 +68,7 @@ export class MediaProcessorService {
       '--no-warnings',
       '--ignore-errors',
       '--extractor-args',
-      'youtube:player_client=android,ios,web,mweb',
+      'youtube:player_client=web_creator,web',
     ];
 
     if (ffmpegBin) {
