@@ -59,8 +59,24 @@ export const DownloadAdModal: React.FC<DownloadAdModalProps> = ({
     .replace(/\s+/g, '_');
   const directDownloadUrl = getDownloadEndpoint(url, format.id, platform, cleanTitle);
 
-  const handleDownloadClick = () => {
+  const handleDownloadClick = async () => {
     setHasStartedDownload(true);
+    try {
+      const response = await fetch(directDownloadUrl);
+      if (!response.ok) throw new Error('Download failed');
+      const blob = await response.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = `${cleanTitle}.${format.ext}`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(blobUrl);
+    } catch {
+      // Fallback: open in new tab
+      window.open(directDownloadUrl, '_blank');
+    }
     setTimeout(() => {
       onClose();
     }, 3500);
@@ -144,21 +160,21 @@ export const DownloadAdModal: React.FC<DownloadAdModalProps> = ({
             )}
           </div>
 
-          <a
-            href={directDownloadUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            download={`${cleanTitle}.${format.ext}`}
+          <button
+            type="button"
             onClick={handleDownloadClick}
+            disabled={countdown > 0 && !hasStartedDownload}
             className={`w-full sm:w-auto px-6 py-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer shadow-lg ${
               hasStartedDownload
                 ? 'bg-emerald-600 text-white'
-                : 'glow-purple-button text-white hover:scale-105'
+                : countdown > 0
+                  ? 'bg-white/10 text-slate-400 cursor-not-allowed'
+                  : 'glow-purple-button text-white hover:scale-105'
             }`}
           >
             <Download className="w-4 h-4" />
             <span>{hasStartedDownload ? 'Downloading...' : countdown > 0 ? 'Skip & Download Now' : 'Download File Now'}</span>
-          </a>
+          </button>
         </div>
       </div>
     </div>
