@@ -8,6 +8,7 @@ import { ErrorState } from './ErrorState';
 import { MediaInfo, Platform } from '../types';
 import { detectPlatformClient } from '../lib/platform-detector';
 import { analyzeMediaUrl } from '../lib/api';
+import { extractYouTubeClientSide } from '../lib/youtube-client';
 
 export const Downloader: React.FC = () => {
   const [url, setUrl] = useState('');
@@ -44,12 +45,34 @@ export const Downloader: React.FC = () => {
     setIsLoading(true);
 
     try {
+      // Try server-side extraction first
       const result = await analyzeMediaUrl(url.trim());
       setMediaInfo(result);
-    } catch (err: unknown) {
+    } catch (serverErr: unknown) {
+      const isYouTube = detectPlatformClient(url.trim()).platform === 'youtube';
+
+      // If server failed and it's a YouTube URL, try client-side extraction
+      if (isYouTube) {
+        try {
+          const clientResult = await extractYouTubeClientSide(url.trim());
+          setMediaInfo({
+            ...clientResult,
+            platform: 'youtube',
+            url: url.trim(),
+            id: 'yt-client',
+            _clientSide: true,
+          } as MediaInfo & { _clientSide?: boolean });
+          return;
+        } catch (clientErr: unknown) {
+          // Both server and client extraction failed
+          console.error('Client-side YouTube extraction also failed:', clientErr);
+        }
+      }
+
+      // Show server error message (or combined error)
       const message =
-        err instanceof Error
-          ? err.message
+        serverErr instanceof Error
+          ? serverErr.message
           : 'Unable to process this URL. Please verify the link and try again.';
       setError(message);
     } finally {

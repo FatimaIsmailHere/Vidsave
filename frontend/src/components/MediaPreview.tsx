@@ -154,6 +154,7 @@ export const MediaPreview: React.FC<MediaPreviewProps> = ({ media, onReset }) =>
         url={media.url}
         platform={media.platform}
         title={media.title}
+        clientSide={(media as MediaInfo & { _clientSide?: boolean })._clientSide}
       />
     </div>
   );
